@@ -1,5 +1,4 @@
 terraform {
-  required_version = "~> 4.18.0"
   backend "s3" {
     bucket         	   = "cicd-tfstate-infra"
     key                = "cicd/terraform.tfstate"
