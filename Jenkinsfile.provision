@@ -55,12 +55,13 @@ pipeline {
         script {
             def ip = readFile("${TF_DIR}/ec2_ip.txt").trim()
             sh """
-            echo "[ephemeral]" > /tmp/inv
-            echo "${ip}" >> /tmp/inv
+             echo "[ephemeral]" > /tmp/inv
+             echo "${ip}" >> /tmp/inv
+             chmod 600 ${SSH_KEY_FILE}
 
-            ANSIBLE_HOST_KEY_CHECKING=False \
-            ansible-playbook -i /tmp/inv ansible/playbook.yaml \
-                --private-key=\${SSH_KEY_FILE} -u ubuntu
+             ANSIBLE_HOST_KEY_CHECKING=False \
+             ansible-playbook -i /tmp/inv ansible/playbook.yaml \
+               --private-key=\${SSH_KEY_FILE} -u ubuntu
             """
           }
         }
