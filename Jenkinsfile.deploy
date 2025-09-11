@@ -42,7 +42,8 @@ pipeline {
 
     stage('SSH Deploy to EC2') {
       steps {
-        withCredentials([file(credentialsId: env.SSH_KEY_CRED, variable: 'SSH_KEY_FILE')]) {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')
+        ,file(credentialsId: env.SSH_KEY_CRED, variable: 'SSH_KEY_FILE')]) {
           script {
             def ip = params.EC2_IP
             sh """
