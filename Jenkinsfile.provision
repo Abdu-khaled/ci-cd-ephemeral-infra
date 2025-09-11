@@ -50,32 +50,32 @@ pipeline {
     }
 
     stage('Ansible configure') {
-        steps {
-            withCredentials([file(credentialsId: env.SSH_CREDENTIALS_ID, variable: 'SSH_KEY_FILE')]) {
-            script {
-                def ip = readFile("${TF_DIR}/ec2_ip.txt").trim()
-                sh """
-                # Set proper permissions for the SSH key
-                chmod 600 ${SSH_KEY_FILE}
-                
-                # Create Ansible inventory
-                echo "[ephemeral]" > /tmp/inv
-                echo "${ip}" >> /tmp/inv
+      steps {
+          withCredentials([file(credentialsId: env.SSH_CREDENTIALS_ID, variable: 'SSH_KEY_FILE')]) {
+          script {
+              def ip = readFile("${TF_DIR}/ec2_ip.txt").trim()
+              sh """
+              # Set proper permissions for the SSH key
+              chmod 600 ${SSH_KEY_FILE}
+              
+              # Create Ansible inventory
+              echo "[ephemeral]" > /tmp/inv
+              echo "${ip}" >> /tmp/inv
 
-                # Run Ansible playbook
-                ANSIBLE_HOST_KEY_CHECKING=False \\
-                ansible-playbook -i /tmp/inv ansible/playbook.yaml \\
-                    --private-key=${SSH_KEY_FILE} -u ubuntu
-                """
-            }
-            }
-        }
+              # Run Ansible playbook
+              ANSIBLE_HOST_KEY_CHECKING=False \\
+              ansible-playbook -i /tmp/inv ansible/playbook.yaml \\
+                  --private-key=${SSH_KEY_FILE} -u ubuntu
+              """
+          }
+          }
+      }
     }
 }
 
-//   post {
-//     success {
-//       build job: 'Deploy-Pipeline', parameters: [string(name: 'EC2_IP', value: env.EC2_IP)]
-//     }
-//   }
+  post {
+    success {
+      build job: 'Deploy-Pipeline', parameters: [string(name: 'EC2_IP', value: env.EC2_IP)]
+    }
+  }
 }
