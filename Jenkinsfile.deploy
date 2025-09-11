@@ -48,6 +48,7 @@ pipeline {
             sh """
               # stop and remove existing container if present; run new one
               
+              chmod 600 ${SSH_KEY_FILE}
               ssh -o StrictHostKeyChecking=no -i "${SSH_KEY_FILE}" ubuntu@${ip} '
                 docker pull ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER} || true
                 docker rm -f web || true
