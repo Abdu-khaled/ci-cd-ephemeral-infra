@@ -51,7 +51,7 @@ pipeline {
 
     stage('Ansible configure') {
       steps {
-        withCredentials([sshUserPrivateKey(credentialsId: env.SSH_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY')]) {
+        withCredentials([sshUserPrivateKey(credentialsId: env.SSH_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY_FILE')]) {
           script {
             def ip = readFile('terraform/ec2_ip.txt').trim()
             sh """
@@ -60,13 +60,14 @@ pipeline {
 
               ANSIBLE_HOST_KEY_CHECKING=False \
               ansible-playbook -i /tmp/inv ansible/playbook.yaml \
-                --private-key "$SSH_KEY" -u ubuntu
+                --private-key $SSH_KEY_FILE -u ubuntu
             """
-          }
-        }
-      }
+           }
+         }
+       }
     }
-  }
+
+}
 
 //   post {
 //     success {
