@@ -60,7 +60,7 @@ pipeline {
 
               ANSIBLE_HOST_KEY_CHECKING=False \
               ansible-playbook -i /tmp/inv ansible/playbook.yaml \
-                --private-key=${SSH_KEY} -u ubuntu
+                --private-key "$SSH_KEY" -u ubuntu
             """
           }
         }
