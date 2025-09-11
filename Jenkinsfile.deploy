@@ -42,7 +42,7 @@ pipeline {
 
     stage('SSH Deploy to EC2') {
       steps {
-        withCredentials([file(credentialsId: env.SSH_CREDENTIALS_ID, variable: 'SSH_KEY_FILE')]) {
+        withCredentials([file(credentialsId: env.SSH_KEY_CRED, variable: 'SSH_KEY_FILE')]) {
           script {
             def ip = params.EC2_IP
             sh """
