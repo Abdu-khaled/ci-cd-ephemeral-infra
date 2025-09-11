@@ -1,0 +1,74 @@
+pipeline {
+  agent any
+  environment {
+    TF_DIR = "terraform"
+    AWS_CREDENTIALS_ID = "aws-creds"
+    SSH_CREDENTIALS_ID = "ssh-key-agent"
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Terraform Init & Apply') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
+          dir("${TF_DIR}") {
+            sh '''
+              terraform init -input=false
+              terraform apply -auto-approve -input=false
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Get outputs') {
+      steps {
+        dir("${TF_DIR}") {
+          script {
+            def ip = sh(script: "terraform output -raw public_ip", returnStdout: true).trim()
+            def instanceId = sh(script: "terraform output -raw instance_id", returnStdout: true).trim()
+            echo "EC2 IP: ${ip}"
+            echo "Instance ID: ${instanceId}"
+            // Save for downstream job in Jenkins pipeline using build parameter or store in file/SSM
+            writeFile file: 'ec2_ip.txt', text: ip
+            archiveArtifacts artifacts: 'ec2_ip.txt', fingerprint: true
+            // Optionally set build param for downstream:
+            currentBuild.description = "EC2_IP=${ip}"
+            // Use Jenkins pipeline-passing (trigger) below
+            env.EC2_IP = ip
+          }
+        }
+      }
+    }
+
+    stage('Ansible configure') {
+      steps {
+        // Use SSH creds to run Ansible ad-hoc/playbook
+        withCredentials([sshUserPrivateKey(credentialsId: env.SSH_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY')]) {
+          script {
+            def ip = readFile('terraform/ec2_ip.txt').trim()
+            sh """
+              # create temporary inventory with the new host
+              echo "[ephemeral]" > /tmp/inv
+              echo "${ip}" >> /tmp/inv
+
+              # run ansible against it (assumes ansible is installed on the agent)
+              ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i /tmp/inv ansible/playbook.yml --private-key=${SSH_KEY} -u ubuntu
+            """
+          }
+        }
+      }
+    }
+  }
+
+//   post {
+//     success {
+//       // trigger Pipeline 2, pass EC2 IP
+//       build job: 'Deploy-Pipeline', parameters: [string(name: 'EC2_IP', value: env.EC2_IP)]
+//     }
+//   }
+// }
