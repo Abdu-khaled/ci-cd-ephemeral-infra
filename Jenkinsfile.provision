@@ -50,24 +50,27 @@ pipeline {
     }
 
     stage('Ansible configure') {
-      steps {
-        withCredentials([sshUserPrivateKey(credentialsId: env.SSH_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY_FILE')]) {
-          script {
-            def ip = readFile('terraform/ec2_ip.txt').trim()
-            sh """
-              echo "[ephemeral]" > /tmp/inv
-              echo "${ip}" >> /tmp/inv
+        steps {
+            withCredentials([sshUserPrivateKey(credentialsId: env.SSH_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY')]) {
+                script {
+                    def ip = readFile("${TF_DIR}/ec2_ip.txt").trim()
+                    writeFile file: 'inventory.ini', text: """
+     [ephemeral]
+    ${ip} ansible_user=ubuntu ansible_ssh_private_key_file=${SSH_KEY}
 
-              ANSIBLE_HOST_KEY_CHECKING=False \
-              ansible-playbook -i /tmp/inv ansible/playbook.yaml \
-                --private-key $SSH_KEY_FILE -u ubuntu
-            """
-           }
-         }
-       }
+    [ephemeral:vars]
+    ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    """
+                    
+                    sh """
+                        ANSIBLE_HOST_KEY_CHECKING=False \
+                        ansible-playbook -i inventory.ini ansible/playbook.yaml
+                    """
+                }
+            }
+        }
     }
-
-}
+  }
 
 //   post {
 //     success {
