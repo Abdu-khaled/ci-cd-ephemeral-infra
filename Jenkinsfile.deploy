@@ -1,0 +1,69 @@
+pipeline {
+  agent any
+  parameters {
+    string(name: 'EC2_IP', defaultValue: '', description: 'IP of EC2 instance')
+  }
+  environment {
+    DOCKERHUB_CRED = credentials('dockerhub-creds')  // username/password
+    SSH_KEY_CRED = 'ssh-key'
+  }
+  stages {
+    stage('Checkout') { steps { checkout scm } }
+
+    stage('Prepare index.html') {
+      steps {
+        script {
+          def ts = sh(script: "date -u +'%Y-%m-%dT%H:%M:%SZ'", returnStdout: true).trim()
+          writeFile file: 'docker/nginx/index.html', text: "<html><body><h1>Build: ${env.BUILD_NUMBER}</h1><p>Time: ${ts}</p></body></html>"
+        }
+      }
+    }
+
+    stage('Build image') {
+      steps {
+        dir('docker/nginx') {
+          sh "docker build -t nginx-ci:${env.BUILD_NUMBER} ."
+        }
+      }
+    }
+
+    stage('Login & Push') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+          sh """
+            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+            docker tag nginx-ci:${BUILD_NUMBER} ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER}
+            docker push ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER}
+          """
+        }
+      }
+    }
+
+    stage('SSH Deploy to EC2') {
+      steps {
+        withCredentials([sshUserPrivateKey(credentialsId: SSH_KEY_CRED, keyFileVariable: 'SSH_KEY')]) {
+          script {
+            def ip = params.EC2_IP
+            sh """
+              # stop and remove existing container if present; run new one
+              ssh -o StrictHostKeyChecking=no -i ${SSH_KEY} ubuntu@${ip} '
+                docker pull ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER} || true
+                docker rm -f web || true
+                docker run -d --name web -p 80:80 ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER}
+              '
+            """
+          }
+        }
+      }
+    }
+
+    stage('Verify') {
+      steps {
+        script {
+          def ip = params.EC2_IP
+          sh "curl -sS http://${ip} | grep 'Build:' || (echo 'Verification failed' && exit 1)"
+        }
+      }
+    }
+  }
+}
