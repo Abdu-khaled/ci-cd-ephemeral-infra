@@ -7,6 +7,11 @@ data "aws_vpc" "default" {
 data "aws_subnet" "default_a" {
   availability_zone = "eu-central-1a"
   default_for_az    = true
+
+  tags = {
+    Name = "public-subnet"
+    Tier = "public"
+  }
 }
 
 # Create security_group
