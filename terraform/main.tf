@@ -4,14 +4,9 @@ data "aws_vpc" "default" {
 }
 
 # Get default subnet in AZ a
-data "aws_subnet" "default_a" {
-  availability_zone = "eu-central-1a"
+data "aws_subnet" "default_b" {
+  availability_zone = "eu-central-1b"
   default_for_az    = true
-
-  tags = {
-    Name = "public-subnet"
-    Tier = "public"
-  }
 }
 
 # Create security_group
@@ -56,7 +51,7 @@ data "aws_ami" "ubuntu" {
 resource "aws_instance" "ci_ephemeral" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
-  subnet_id              = data.aws_subnet.default_a.id
+  subnet_id              = data.aws_subnet.default_b.id
   vpc_security_group_ids = [aws_security_group.ci_ssh.id]
   key_name               = var.ssh_key_name
 
