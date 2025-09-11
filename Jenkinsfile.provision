@@ -18,7 +18,7 @@ pipeline {
           dir("${TF_DIR}") {
             sh '''
               terraform init -input=false
-              terraform apply -auto-approve -input=false
+              terraform apply -var-file="terraform.tfvars" -auto-approve -input=false
             '''
           }
         }
