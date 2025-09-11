@@ -59,7 +59,7 @@ pipeline {
               echo "${ip}" >> /tmp/inv
 
               ANSIBLE_HOST_KEY_CHECKING=False \
-              ansible-playbook -i /tmp/inv ansible/playbook.yml \
+              ansible-playbook -i /tmp/inv ansible/playbook.yaml \
                 --private-key=${SSH_KEY} -u ubuntu
             """
           }
