@@ -50,22 +50,26 @@ pipeline {
     }
 
     stage('Ansible configure') {
-    steps {
-        withCredentials([sshUserPrivateKey(credentialsId: env.SSH_CREDENTIALS_ID, keyFileVariable: 'SSH_KEY_FILE')]) {
-        script {
-            def ip = readFile("${TF_DIR}/ec2_ip.txt").trim()
-            sh """
-             echo "[ephemeral]" > /tmp/inv
-             echo "${ip}" >> /tmp/inv
-             chmod 600 ${SSH_KEY_FILE}
+        steps {
+            withCredentials([file(credentialsId: env.SSH_CREDENTIALS_ID, variable: 'SSH_KEY_FILE')]) {
+            script {
+                def ip = readFile("${TF_DIR}/ec2_ip.txt").trim()
+                sh """
+                # Set proper permissions for the SSH key
+                chmod 600 ${SSH_KEY_FILE}
+                
+                # Create Ansible inventory
+                echo "[ephemeral]" > /tmp/inv
+                echo "${ip}" >> /tmp/inv
 
-             ANSIBLE_HOST_KEY_CHECKING=False \
-             ansible-playbook -i /tmp/inv ansible/playbook.yaml \
-               --private-key=\${SSH_KEY_FILE} -u ubuntu
-            """
-          }
+                # Run Ansible playbook
+                ANSIBLE_HOST_KEY_CHECKING=False \\
+                ansible-playbook -i /tmp/inv ansible/playbook.yaml \\
+                    --private-key=${SSH_KEY_FILE} -u ubuntu
+                """
+            }
+            }
         }
-      }
     }
 }
 
