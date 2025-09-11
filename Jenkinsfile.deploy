@@ -4,7 +4,7 @@ pipeline {
     string(name: 'EC2_IP', defaultValue: '', description: 'IP of EC2 instance')
   }
   environment {
-    DOCKERHUB_CRED = credentials('dockerhub-creds')  // username/password
+    DOCKERHUB_CRED = credentials('dockerhub-creds')
     SSH_KEY_CRED = 'ssh-key'
   }
 
