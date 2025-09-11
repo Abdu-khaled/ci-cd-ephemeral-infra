@@ -71,4 +71,4 @@ pipeline {
 //       build job: 'Deploy-Pipeline', parameters: [string(name: 'EC2_IP', value: env.EC2_IP)]
 //     }
 //   }
-// }
+}
