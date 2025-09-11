@@ -9,9 +9,9 @@ variable "instance_type" {
 
 
 variable "ssh_key_name" {
-  description = "Name of the EC2 KeyPair for provisioning (must exist in AWS)"
-  type = string
+  default = "my-keypair"
 }
+
 
 variable "ci_owner" {
   default = "jenkins"
