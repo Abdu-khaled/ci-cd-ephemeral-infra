@@ -3,7 +3,7 @@ pipeline {
   environment {
     TF_DIR = "terraform"
     AWS_CREDENTIALS_ID = "aws-creds"
-    SSH_CREDENTIALS_ID = "ssh-key-agent"
+    SSH_CREDENTIALS_ID = "ssh-key"
   }
   stages {
     stage('Checkout') {
