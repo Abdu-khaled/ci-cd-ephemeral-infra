@@ -28,7 +28,6 @@ pipeline {
       }
     }
 
-
     stage('Login & Push') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
@@ -41,7 +40,6 @@ pipeline {
       }
     }
 
-
     stage('SSH Deploy to EC2') {
       steps {
         withCredentials([sshUserPrivateKey(credentialsId: SSH_KEY_CRED, keyFileVariable: 'SSH_KEY')]) {
@@ -49,7 +47,7 @@ pipeline {
             def ip = params.EC2_IP
             sh """
               # stop and remove existing container if present; run new one
-
+              
               ssh -o StrictHostKeyChecking=no -i ${SSH_KEY} ubuntu@${ip} '
                 docker pull ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER} || true
                 docker rm -f web || true
@@ -60,7 +58,6 @@ pipeline {
         }
       }
     }
-
 
     stage('Verify') {
       steps {
