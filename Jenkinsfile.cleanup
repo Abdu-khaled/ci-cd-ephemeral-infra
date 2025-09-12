@@ -1,0 +1,39 @@
+pipeline {
+  agent any
+  environment {
+    AWS_CREDENTIALS_ID = 'aws-creds'
+  }
+
+  stages {
+    stage('Find ephemeral instances') {
+
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
+          script {
+            // get instance ids with tag lifespan=ephemeral
+
+            def ids = sh(script: """
+            aws ec2 describe-instances \
+              --filters "Name=tag:lifespan,Values=ephemeral" \
+              --query "Reservations[].Instances[].InstanceId" --output json
+
+              """, returnStdout: true).trim()
+
+            if (!ids) {
+              echo "No ephemeral instances found"
+              currentBuild.description = "No ephemeral instances found"
+
+            } else {
+
+              echo "Found instances: ${ids}"
+              // terminate them
+              sh "aws ec2 terminate-instances --instance-ids ${ids}"
+              currentBuild.description = "Terminated: ${ids}"
+
+            }
+          }
+        }
+      }
+    }
+  }
+}
