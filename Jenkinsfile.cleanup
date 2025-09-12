@@ -16,7 +16,7 @@ pipeline {
             def ids = sh(script: """
             aws ec2 describe-instances \
               --filters "Name=tag:lifespan,Values=ephemeral" \
-              --query "Reservations[].Instances[].InstanceId" --output json
+              --query "Reservations[].Instances[].InstanceId" --output text
 
               """, returnStdout: true).trim()
 
