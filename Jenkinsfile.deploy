@@ -14,6 +14,26 @@ pipeline {
     SSH_KEY_CRED = 'ssh-key'
   }
 
+stage('Prevent duplicate') {
+  steps {
+    script {
+      def lastCommitFile = "${JENKINS_HOME}/last_build_commit.txt"
+      def currentCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
+      
+      if (fileExists(lastCommitFile)) {
+        def lastCommit = readFile(lastCommitFile).trim()
+        if (lastCommit == currentCommit) {
+          echo "Commit ${currentCommit} already built. Skipping pipeline."
+          currentBuild.result = 'SUCCESS'
+          return
+        }
+      }
+      
+      writeFile file: lastCommitFile, text: currentCommit
+    }
+  }
+}
+
   stages {
     stage('Checkout') { steps { checkout scm } }
 
