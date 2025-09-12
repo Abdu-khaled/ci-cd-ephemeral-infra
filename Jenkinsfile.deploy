@@ -6,21 +6,19 @@ pipeline {
   }
 
   options {
-    // Prevent multiple builds running at the same time
     disableConcurrentBuilds()
   }
 
   environment {
     DOCKERHUB_CRED = credentials('dockerhub-creds')
     SSH_KEY_CRED = 'ssh-key'
+    LAST_COMMIT_FILE = "last_build_commit.txt"
   }
 
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Prevent duplicate commit') {
@@ -28,9 +26,8 @@ pipeline {
         script {
           def currentCommit = sh(script: "git rev-parse HEAD", returnStdout: true).trim()
 
-          def lastBuild = currentBuild.getPreviousBuild()
-          if (lastBuild != null) {
-            def lastCommit = lastBuild.getEnvVars()['GIT_COMMIT']
+          if (fileExists(env.LAST_COMMIT_FILE)) {
+            def lastCommit = readFile(env.LAST_COMMIT_FILE).trim()
             if (lastCommit == currentCommit) {
               echo "Commit ${currentCommit} already built. Skipping pipeline."
               currentBuild.result = 'SUCCESS'
@@ -38,6 +35,7 @@ pipeline {
             }
           }
 
+          writeFile file: env.LAST_COMMIT_FILE, text: currentCommit
           env.GIT_COMMIT = currentCommit
         }
       }
@@ -62,7 +60,7 @@ pipeline {
 
     stage('Login & Push') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh """
             echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
             docker tag nginx-ci:${BUILD_NUMBER} ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER}
@@ -104,5 +102,5 @@ pipeline {
       }
     }
 
-  } // end stages
-} // end pipeline
+  }
+}
