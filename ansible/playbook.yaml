@@ -37,7 +37,13 @@
           - containerd.io
         state: present
         update_cache: yes
-      
+        
+    - name: Add ubuntu to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+        
     - name: Ensure docker in running
       ansible.builtin.service:
         name: docker
