@@ -25,6 +25,15 @@ pipeline {
       }
     }
 
+
+    stage('Wait for EC2 to be ready') {
+      steps {
+        echo "Waiting 60 seconds for EC2 to initialize..."
+        sleep 60
+      }
+    }
+
+
     stage('Get outputs') {
       steps {
         withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
