@@ -12,6 +12,7 @@ pipeline {
   environment {
     DOCKERHUB_CRED = credentials('dockerhub-creds')
     SSH_KEY_CRED = 'ssh-key'
+    LAST_COMMIT_FILE = "${JENKINS_HOME}/last_build_commit.txt" // store last built commit
   }
 
   stages {
