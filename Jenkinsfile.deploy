@@ -3,6 +3,11 @@ pipeline {
   parameters {
     string(name: 'EC2_IP', defaultValue: '', description: 'IP of EC2 instance')
   }
+  options {
+    // Prevent multiple builds running at the same time
+    disableConcurrentBuilds()
+
+  }
 
   environment {
     DOCKERHUB_CRED = credentials('dockerhub-creds')
@@ -45,6 +50,8 @@ pipeline {
       steps {
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')
         ,file(credentialsId: env.SSH_KEY_CRED, variable: 'SSH_KEY_FILE')]) {
+
+         lock(resource: "ec2-deploy-${params.EC2_IP}"){
           script {
             def ip = params.EC2_IP
             sh """
@@ -62,7 +69,7 @@ pipeline {
         }
       }
     }
-
+  } 
     stage('Verify') {
       steps {
         script {
