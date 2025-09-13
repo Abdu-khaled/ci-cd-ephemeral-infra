@@ -1,5 +1,5 @@
 pipeline {
-  agent any
+  agent { label 'agent1' }
   environment {
     TF_DIR = "terraform"
     AWS_CREDENTIALS_ID = "aws-creds"

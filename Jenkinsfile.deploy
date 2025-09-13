@@ -1,5 +1,5 @@
 pipeline {
-  agent any
+  agent { label 'agent1' }
   parameters {
     string(name: 'EC2_IP', defaultValue: '', description: 'IP of EC2 instance')
   }

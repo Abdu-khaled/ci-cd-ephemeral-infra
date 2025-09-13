@@ -1,5 +1,5 @@
 pipeline {
-  agent any
+  agent { label 'agent1' }
   environment {
     AWS_CREDENTIALS_ID = 'aws-creds'
     AWS_DEFAULT_REGION = 'eu-central-1'
