@@ -1,0 +1,24 @@
+FROM ubuntu:22.04
+
+# Install dependencies: ssh server, docker cli, terraform, ansible, awscli
+RUN apt-get update && \
+    apt-get install -y openssh-server sudo curl unzip python3 python3-pip && \
+    apt-get install -y docker.io ansible awscli && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Terraform
+ARG TF_VERSION=1.6.6
+RUN curl -fsSL https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip -o terraform.zip && \
+    unzip terraform.zip && mv terraform /usr/local/bin/ && rm terraform.zip
+
+# Create Jenkins user
+RUN useradd -m -d /home/jenkins -s /bin/bash jenkins && \
+    echo "jenkins ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    mkdir -p /home/jenkins/.ssh && chmod 700 /home/jenkins/.ssh
+
+# Configure SSH
+RUN mkdir /var/run/sshd
+EXPOSE 22
+
+# Run SSH server
+CMD ["/usr/sbin/sshd", "-D"]
