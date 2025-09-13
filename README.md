@@ -93,6 +93,7 @@ terraform {
 ```
 
 **Verification: AWS console**
+
 1. S3 bucket 
 ![](./images-sc/01.png)
 
@@ -178,6 +179,7 @@ docker run -d --name jenkins-agent \
   jenkins-agent:devops 
 ```
 **Verification**
+
 ![](./images-sc/03.png)
 
 ![](./images-sc/04.png)
@@ -200,6 +202,7 @@ docker run -d --name jenkins-agent \
   - Type: Username & Token\
   
 **Verification**
+
 ![](./images-sc/05.png)
 
 ---
@@ -219,9 +222,11 @@ docker run -d --name jenkins-agent \
 
 - Configure Jenkins Job for Webhook
 - Enable GitHub hook trigger for GITScm polling
+  
   ![](./images-sc/06.png)
 
 - Add Webhook in GitHub repository
+  
   ![](./images-sc/07.png)
 
 
@@ -331,10 +336,14 @@ pipeline {
   }
 }
 ```
-#### **Verification**
+---
+
+#### **Verification: Pipeline-one**
+
 ![](./images-sc/08.png)
 
 **1. Terraform init with remote backend (no local state).**
+
   ![](./images-sc/09.png)
 
 
@@ -349,12 +358,15 @@ pipeline {
 ![](./images-sc/11.png)
 
 **4. Ansible: install & enable Docker on the new host.**
+
 ![](./images-sc/12.png)
 
 **5. EC2 running in AWS console**
+
 ![](./images-sc/13.png)
 
 **6. Check the docker service is running in Ec2 instance**
+
 ![](./images-sc/14.png)
 
 ---
@@ -373,6 +385,13 @@ pipeline {
     }
     ```
 #### 2. Create: [`Jenkinsfile.deploy`](Jenkinsfile.deploy)
+ - Build Docker image from `nginx:alpine` with custom `index.html` (show `BUILD_NUMBER` + timestamp).
+ - Login to private Docker Hub using Jenkins credentials.
+ - Push image tagged `docker.io/<namespace>/nginx-ci:<BUILD_NUMBER>` (or git SHA).
+ - Deploy via SSH to `EC2_IP`: replace any existing container `web`, run on port 80, verify with `curl`.
+
+
+
 
 ```bash
 pipeline {
@@ -466,3 +485,98 @@ pipeline {
 }
 ```
 
+---
+#### **Verification: Pipeline-two**
+
+![](./images-sc/15.png)
+
+![](./images-sc/17.png)
+
+![](./images-sc/16.png)
+
+---
+
+## 2.3 Pipeline Three: Cleanup Ephemeral Infrastructure
+
+**Required steps:**
+
+#### **1. Trigger (Jenkins schedule):**
+
+- In the job configuration, set *Build periodically*: TZ=Africa/Cairo 0 0 * * *
+  
+![](./images-sc/18.png)
+
+#### 2. Create: [`Jenkinsfile.cleanup`](Jenkinsfile.cleanup)
+
+- Use Jenkins AWS credentials (least-privilege IAM) in the job.
+    ```json
+    {
+    "Version":"2012-10-17",
+    "Statement":[{
+        "Effect":"Allow",
+        "Action":[
+        "ec2:DescribeInstances",
+        "ec2:DescribeTags",
+        "ec2:TerminateInstances"
+        ],
+        "Resource":"*"
+    }]
+    }
+    ```
+- Find instances with the ephemeral tag (match what you set in Pipeline 1). For example:
+   - lifespan=ephemeral and/or Name=ci-ephemeral
+-  Terminate all matching instances (running or stopped).
+-  Log the list of terminated instance IDs.
+
+[`Jenkinsfile.cleanup`](Jenkinsfile.cleanup)
+
+```bash
+pipeline {
+  agent { label 'agent1' }
+  environment {
+    AWS_CREDENTIALS_ID = 'aws-creds'
+    AWS_DEFAULT_REGION = 'eu-central-1'
+  }
+
+  stages {
+    stage('Find ephemeral instances') {
+
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
+          script {
+            // get instance ids with tag lifespan=ephemeral
+
+            def ids = sh(script: """
+            aws ec2 describe-instances \
+              --filters "Name=tag:lifespan,Values=ephemeral" \
+              --query "Reservations[].Instances[].InstanceId" --output text
+
+              """, returnStdout: true).trim()
+
+            if (!ids) {
+              echo "No ephemeral instances found"
+              currentBuild.description = "No ephemeral instances found"
+
+            } else {
+
+              echo "Found instances: ${ids}"
+              // terminate them
+              sh "aws ec2 terminate-instances --instance-ids ${ids}"
+              currentBuild.description = "Terminated: ${ids}"
+
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+---
+#### **Verification: Pipeline-three**
+
+![](./images-sc/19.png)
+
+![](./images-sc/20.png)
+
+![](./images-sc/21.png)
