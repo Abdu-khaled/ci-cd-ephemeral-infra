@@ -41,13 +41,3 @@ EXPOSE 22
 
 # Run SSH server
 CMD ["/usr/sbin/sshd", "-D"]
-
-
-
-
-
-# Start Agent Container
-# docker run -d --name jenkins-agent \
-#   -v /var/run/docker.sock:/var/run/docker.sock \
-#   -v ~/.ssh/jenkins_agent.pub:/home/jenkins/.ssh/authorized_keys:ro \
-#   jenkins-agent:devops
