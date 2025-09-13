@@ -331,3 +331,138 @@ pipeline {
   }
 }
 ```
+#### **Verification**
+![](./images-sc/08.png)
+
+**1. Terraform init with remote backend (no local state).**
+  ![](./images-sc/09.png)
+
+
+**2. Terraform apply: create t2.micro/t3.micro instance with tags:**
+
+- Name=ci-ephemeral, lifespan=ephemeral, owner=jenkins**
+
+![](./images-sc/10.png)
+
+**3. Terraform output: expose `public_ip`.**
+
+![](./images-sc/11.png)
+
+**4. Ansible: install & enable Docker on the new host.**
+![](./images-sc/12.png)
+
+**5. EC2 running in AWS console**
+![](./images-sc/13.png)
+
+**6. Check the docker service is running in Ec2 instance**
+![](./images-sc/14.png)
+
+---
+
+### 2.2 Pipeline Two: Build & Deploy Application
+
+**Required steps:**
+#### **1. Trigger:** Automatically after Pipeline 1; receives `EC2_IP`.
+
+- And this stage in the pipeline-one to run the pipeline-two, or **trigger it in the Pipeline-two Configuration to run after pipeline-one.**
+    ```bash
+    post {
+        success {
+        build job: 'Pipeline-two', parameters: [string(name: 'EC2_IP', value: env.EC2_IP)]
+        }
+    }
+    ```
+#### 2. Create: [`Jenkinsfile.deploy`](Jenkinsfile.deploy)
+
+```bash
+pipeline {
+  agent { label 'agent1' }
+  parameters {
+    string(name: 'EC2_IP', defaultValue: '', description: 'IP of EC2 instance')
+  }
+  options {
+    // Prevent multiple builds running at the same time
+    disableConcurrentBuilds()
+
+  }
+
+  environment {
+    DOCKERHUB_CRED = credentials('dockerhub-creds')
+    SSH_KEY_CRED = 'ssh-key'
+  }
+
+  stages {
+    stage('Checkout') { steps { checkout scm } }
+
+    stage('Prepare index.html') {
+      steps {
+        script {
+          def ts = sh(script: "date -u +'%Y-%m-%dT%H:%M:%SZ'", returnStdout: true).trim()
+          writeFile file: 'docker/nginx/index.html', text: "<html><body><h1>Build: ${env.BUILD_NUMBER}</h1><p>Time: ${ts}</p></body></html>"
+        }
+      }
+    }
+
+    stage('Build image') {
+      steps {
+        dir('docker/nginx') {
+          sh "docker build -t nginx-ci:${env.BUILD_NUMBER} ."
+        }
+      }
+    }
+
+    stage('Login & Push') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+          sh """
+            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+            docker tag nginx-ci:${BUILD_NUMBER} ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER}
+            docker push ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER}
+          """
+        }
+      }
+    }
+
+    stage('SSH Deploy to EC2') {
+     steps {
+        withCredentials([
+        usernamePassword(
+            credentialsId: 'dockerhub-creds', 
+            usernameVariable: 'DOCKER_USER', 
+            passwordVariable: 'DOCKER_PASS'
+        ),
+        file(
+            credentialsId: env.SSH_KEY_CRED, 
+            variable: 'SSH_KEY_FILE'
+        )
+        ]) {
+        lock(resource: "ec2-deploy-${params.EC2_IP}") {
+            script {
+            def ip = params.EC2_IP
+            sh """
+                # stop and remove existing container if present; run new one
+                chmod 600 ${SSH_KEY_FILE}
+                ssh -o StrictHostKeyChecking=no -i ${SSH_KEY_FILE} ubuntu@${ip} '
+                docker pull ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER} || true
+                docker rm -f web || true
+                docker run -d --name web -p 80:80 ${DOCKER_USER}/nginx-ci:${BUILD_NUMBER}
+                '
+            """
+            }
+         }
+        }
+      }
+    }
+
+    stage('Verify') {
+      steps {
+        script {
+          def ip = params.EC2_IP
+          sh "curl -sS http://${ip} | grep 'Build:' || (echo 'Verification failed' && exit 1)"
+        }
+      }
+    }
+  }
+}
+```
+
