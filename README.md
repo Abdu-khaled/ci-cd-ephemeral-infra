@@ -1,8 +1,6 @@
 # Ephemeral CI/CD with Jenkins, Terraform, Ansible & Docker
 
-
 ## Preparation for the CI/CD Project
-
 Before running the pipelines, we need to set up infrastructure and tools for Jenkins.
 
 ---
@@ -183,3 +181,5 @@ docker run -d --name jenkins-agent \
 ![](./images-sc/03.png)
 
 ![](./images-sc/04.png)
+
+---
