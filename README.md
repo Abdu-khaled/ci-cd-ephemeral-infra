@@ -1,11 +1,11 @@
-# Ephemeral CI/CD with Jenkins, Terraform, Ansible & Docker
+# CI/CD Ephemeral Infrastructure with Jenkins, Terraform, Ansible, and Docker
 
 ## Preparation for the CI/CD Project
 Before running the pipelines, we need to set up infrastructure and tools for Jenkins.
 
 ---
 
-### 1. Terraform Remote Backend Setup
+### 1.1 Terraform Remote Backend Setup
 
 I used Amazon S3 to store the Terraform state and DynamoDB for state locking to avoid race conditions when multiple pipelines run.
 
@@ -102,7 +102,7 @@ terraform {
 
 ---
 
-### 2. Jenkins Master in Docker
+### 1.2 Jenkins Master in Docker
 
 I run Jenkins Master inside a container.
 
@@ -117,7 +117,7 @@ docker run -d \
 
 ---
 
-### 3. Jenkins Agent Setup (Custom Dockerfile)
+### 1.3 Jenkins Agent Setup (Custom Dockerfile)
 
 I built a Jenkins agent container image that has all required tools: Terraform, Ansible, AWS CLI, Docker CLI, OpenJDK 17.
 
@@ -183,3 +183,151 @@ docker run -d --name jenkins-agent \
 ![](./images-sc/04.png)
 
 ---
+
+### 1.4 Jenkins Credentials Setup
+
+- AWS Credentials
+  - ID: aws-creds
+  - Type: AWS Access Key & Secret
+
+- SSH Key for EC2
+  - ID: ssh-key
+  - Type: SSH private key (or PEM file)
+  - Username: ubuntu
+
+- DockerHub Credentials
+  - ID: dockerhub-creds
+  - Type: Username & Token\
+  
+**Verification**
+![](./images-sc/05.png)
+
+---
+
+## 2. Pipelines
+
+- **Pipeline 1 (Provision & Configure):** Webhook-triggered. Creates an ephemeral EC2 with Terraform (remote backend), then configures it with Ansible to install Docker.
+- **Pipeline 2 (Build, Push & Deploy):** Auto-triggered after Pipeline 1. Builds an Nginx image, pushes it to private Docker Hub, then SSH-deploys to the EC2 IP.
+- **Pipeline 3 (Daily Cleanup):** Scheduled. Terminates all EC2 instances tagged as ephemeral at **12:00 AM Africa/Cairo** every day.
+
+---
+
+### 2.1 Pipeline One: Provision Infrastructure
+
+**Required steps:**
+#### **1. Trigger:** Git webhook on push to `main`
+
+- Configure Jenkins Job for Webhook
+- Enable GitHub hook trigger for GITScm polling
+  ![](./images-sc/06.png)
+
+- Add Webhook in GitHub repository
+  ![](./images-sc/07.png)
+
+
+#### 2. Creates an ephemeral EC2 with [`Terraform`](terraform/) `Check my repo`
+  - Create [`main.tf`](terraform/main.tf), [`variables.tf`](terraform/variables.tf), [`outputs.tf`](terraform/outputs.tf), [`provider.tf`](terraform/provider.tf).
+
+#### 3. [`Ansible`](ansible/playbook.yaml): install & enable Docker on the new host `Check playbook file in my repo`.
+
+
+#### 4. Create: [`Jenkinsfile.provision`](Jenkinsfile.provision)
+
+   - Run Terraform to provision EC2
+
+   - Extract EC2 public IP + save it
+
+   - Run Ansible to configure EC2 (install Docker)
+
+```bash
+pipeline {
+  agent { label 'agent1' }
+  environment {
+    TF_DIR = "terraform"
+    AWS_CREDENTIALS_ID = "aws-creds"
+    SSH_CREDENTIALS_ID = "ssh-key"
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Terraform Init & Apply') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
+          dir("${TF_DIR}") {
+            sh '''
+              terraform init -input=false
+              terraform apply -var-file="terraform.tfvars" -auto-approve -input=false
+            '''
+          }
+        }
+      }
+    }
+
+
+    stage('Wait for EC2 to be ready') {
+      steps {
+        echo "Waiting 60 seconds for EC2 to initialize..."
+        sleep 60
+      }
+    }
+
+
+    stage('Get outputs') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
+          dir("${TF_DIR}") {
+            script {
+              def ip = sh(script: "terraform output -raw public_ip", returnStdout: true).trim()
+              def instanceId = sh(script: "terraform output -raw instance_id", returnStdout: true).trim()
+
+              echo "EC2 IP: ${ip}"
+              echo "Instance ID: ${instanceId}"
+
+              // Save for downstream jobs or debugging
+              writeFile file: 'ec2_ip.txt', text: ip
+              archiveArtifacts artifacts: 'ec2_ip.txt', fingerprint: true
+
+              // Add info to build metadata
+              currentBuild.description = "EC2_IP=${ip}"
+              env.EC2_IP = ip
+            }
+          }
+        }
+      }
+    }
+
+    stage('Ansible configure') {
+      steps {
+          withCredentials([file(credentialsId: env.SSH_CREDENTIALS_ID, variable: 'SSH_KEY_FILE')]) {
+          script {
+              def ip = readFile("${TF_DIR}/ec2_ip.txt").trim()
+              sh """
+              # Set proper permissions for the SSH key
+              chmod 600 ${SSH_KEY_FILE}
+              
+              # Create Ansible inventory
+              echo "[ephemeral]" > /tmp/inv
+              echo "${ip}" >> /tmp/inv
+
+              # Run Ansible playbook
+              ANSIBLE_HOST_KEY_CHECKING=False \\
+              ansible-playbook -i /tmp/inv ansible/playbook.yaml \\
+                  --private-key=${SSH_KEY_FILE} -u ubuntu
+              """
+          }
+          }
+      }
+    }
+}
+
+  post {
+    success {
+      build job: 'Pipeline-two', parameters: [string(name: 'EC2_IP', value: env.EC2_IP)]
+    }
+  }
+}
+```
