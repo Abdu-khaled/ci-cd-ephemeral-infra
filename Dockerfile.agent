@@ -1,10 +1,21 @@
 FROM ubuntu:22.04
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Install dependencies: ssh server, docker cli, terraform, ansible, awscli
-RUN apt-get update && \
-    apt-get install -y openssh-server sudo curl unzip python3 python3-pip && \
-    apt-get install -y docker.io ansible awscli && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk \
+    openssh-server \
+    sudo \
+    curl \
+    unzip \
+    python3 \
+    python3-pip \
+    docker.io \
+    ansible \
+    awscli \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # Install Terraform
 ARG TF_VERSION=1.6.6
@@ -16,9 +27,27 @@ RUN useradd -m -d /home/jenkins -s /bin/bash jenkins && \
     echo "jenkins ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     mkdir -p /home/jenkins/.ssh && chmod 700 /home/jenkins/.ssh
 
+# Copy public key into image
+COPY jenkins_agent.pub /home/jenkins/.ssh/authorized_keys
+
+RUN chmod 700 /home/jenkins/.ssh && \
+    chmod 600 /home/jenkins/.ssh/authorized_keys && \
+    chown -R jenkins:jenkins /home/jenkins/.ssh
+
+
 # Configure SSH
 RUN mkdir /var/run/sshd
 EXPOSE 22
 
 # Run SSH server
 CMD ["/usr/sbin/sshd", "-D"]
+
+
+
+
+
+# Start Agent Container
+# docker run -d --name jenkins-agent \
+#   -v /var/run/docker.sock:/var/run/docker.sock \
+#   -v ~/.ssh/jenkins_agent.pub:/home/jenkins/.ssh/authorized_keys:ro \
+#   jenkins-agent:devops
