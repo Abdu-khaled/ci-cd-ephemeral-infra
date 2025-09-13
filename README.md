@@ -1,5 +1,8 @@
 # CI/CD Ephemeral Infrastructure with Jenkins, Terraform, Ansible, and Docker
 
+**Check out my repo here: [GitHub - Abdu-khaled/ci-cd-ephemeral-infra.git](https://github.com/Abdu-khaled/ci-cd-ephemeral-infra.git)**
+
+---
 ## Preparation for the CI/CD Project
 Before running the pipelines, we need to set up infrastructure and tools for Jenkins.
 
