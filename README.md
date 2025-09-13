@@ -1,1 +1,1 @@
-# CI/CD Ephemeral Infra
+# CI/CD Practical Task — Jenkins + Terraform + Ansible + Docker + Daily Cleanup
