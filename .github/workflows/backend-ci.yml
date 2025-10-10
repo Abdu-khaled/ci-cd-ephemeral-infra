@@ -1,0 +1,66 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+
+jobs:
+  detect-services:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Detect changed backend services
+        id: set-matrix
+        run: |
+          echo "Detecting changed services..."
+          SERVICES=$(ls backend)
+          CHANGED=()
+          for SERVICE in $SERVICES; do
+            if git diff --name-only ${{ github.base_ref }} ${{ github.head_ref }} | grep "backend/$SERVICE"; then
+              CHANGED+=("\"$SERVICE\"")
+            fi
+          done
+          if [ ${#CHANGED[@]} -eq 0 ]; then
+            CHANGED=($(ls backend | xargs -I {} echo "\"{}\""))
+          fi
+          MATRIX="{\"service\": [$(IFS=,; echo "${CHANGED[*]}")]}"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Detected services: $MATRIX"
+
+  build-test-push:
+    needs: detect-services
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-services.outputs.matrix) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build & test ${{ matrix.service }}
+        run: |
+          echo "Building and testing backend/${{ matrix.service }}"
+          mvn -f backend/${{ matrix.service }}/pom.xml clean verify -DskipTests=false
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}

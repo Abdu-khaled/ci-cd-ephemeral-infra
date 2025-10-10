@@ -6,7 +6,7 @@ set -euo pipefail
 # CONFIGURATION
 # ==============================
 AWS_REGION="eu-central-1"
-S3_BUCKET="cicd-tfstate-infra"
+S3_BUCKET="autoaws-terraform-state"
 DDB_TABLE="tf-locks"
 # ==============================
 
