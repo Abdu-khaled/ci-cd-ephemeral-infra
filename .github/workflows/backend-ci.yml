@@ -119,7 +119,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes] 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # historical analysis
@@ -131,13 +131,16 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Build & test ${{ matrix.service }}
+      - name: SonarQube Analysis for backend services
         run: |
-          echo "Building and testing backend/${{ matrix.service }}"
-          mvn -f backend/${{ matrix.service }}/pom.xml clean verify -DskipTests=false
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          for SERVICE in backend/*; do
+            if [ -f "$SERVICE/pom.xml" ]; then
+              echo " Running SonarQube scan for $SERVICE"
+              mvn -f "$SERVICE/pom.xml" clean verify sonar:sonar \
+                -DskipTests=true \
+                -Dsonar.projectKey=konecta-erp-system-$(basename $SERVICE) \
+                -Dsonar.host.url=http://ec2-63-179-243-110.eu-central-1.compute.amazonaws.com:9000 \
+                -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+                -Dsonar.qualitygate.wait=true
+            fi
+          done
