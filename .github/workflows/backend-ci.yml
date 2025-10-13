@@ -1,15 +1,15 @@
 name: Backend CI
 
-on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'backend/**'
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - 'backend/**'
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: [main, develop]
+#     paths:
+#       - 'backend/**'
+#   pull_request:
+#     branches: [main, develop]
+#     paths:
+#       - 'backend/**'
+#   workflow_dispatch:
 
 jobs:
   secret-scan:
