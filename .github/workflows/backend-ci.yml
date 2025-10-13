@@ -1,15 +1,15 @@
 name: Backend CI
 
-# on:
-#   push:
-#     branches: [main, develop]
-#     paths:
-#       - 'backend/**'
-#   pull_request:
-#     branches: [main, develop]
-#     paths:
-#       - 'backend/**'
-#   workflow_dispatch:
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
 
 jobs:
   secret-scan:
@@ -114,15 +114,20 @@ jobs:
             mvn -B clean verify -DskipTests=false -Dmaven.test.failure.ignore=true
           fi
 
+
   sonar-scan:
-    name: SonarQube Analysis
+    name: SonarQube Analysis (Changed Services)
     runs-on: ubuntu-latest
-    needs: [detect-changes] 
+    needs: [detect-changes]
+    if: ${{ fromJson(needs.detect-changes.outputs.matrix).service != '' }}
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # historical analysis
+          fetch-depth: 0  # Needed for Sonar history
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -131,16 +136,13 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: SonarQube Analysis for backend services
+      - name: Run SonarQube scan for changed backend services
         run: |
-          for SERVICE in backend/*; do
-            if [ -f "$SERVICE/pom.xml" ]; then
-              echo " Running SonarQube scan for $SERVICE"
-              mvn -f "$SERVICE/pom.xml" clean verify sonar:sonar \
-                -DskipTests=true \
-                -Dsonar.projectKey=konecta-erp-system-$(basename $SERVICE) \
-                -Dsonar.host.url=http://ec2-63-179-243-110.eu-central-1.compute.amazonaws.com:9000 \
-                -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
-                -Dsonar.qualitygate.wait=true
-            fi
-          done
+          SERVICE=${{ matrix.service }}
+          echo "Running SonarQube scan for $SERVICE"
+          mvn -f "backend/$SERVICE/pom.xml" clean verify sonar:sonar \
+            -DskipTests=true \
+            -Dsonar.projectKey=konecta-erp-system-$SERVICE \
+            -Dsonar.host.url=http://ec2-3-78-186-45.eu-central-1.compute.amazonaws.com:9000 \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.qualitygate.wait=true
