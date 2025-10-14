@@ -186,3 +186,19 @@ jobs:
           echo "docker_tag=${{ secrets.DOCKER_USERNAME }}/konecta-${{ matrix.service }}:$VERSION" >> $GITHUB_OUTPUT
           echo "docker_latest=${{ secrets.DOCKER_USERNAME }}/konecta-${{ matrix.service }}:latest" >> $GITHUB_OUTPUT
           echo "Determined version: $VERSION"
+
+
+      - name: Build & Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/${{ matrix.service }}
+          file: backend/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.docker_tag }}
+            ${{ steps.vars.outputs.docker_latest }}
+          labels: |
+            org.opencontainers.image.title=konecta-${{ matrix.service }}
+            org.opencontainers.image.created=${{ github.run_id }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.vars.outputs.version }}
