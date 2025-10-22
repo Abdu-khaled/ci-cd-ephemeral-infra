@@ -1,0 +1,126 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: erp-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - erp-net
+    command: >
+      bash -c "
+        docker-entrypoint.sh postgres &
+        sleep 10 &&
+        psql -U postgres -d postgres -c 'CREATE DATABASE \"auth-service\";' || true &&
+        psql -U postgres -d postgres -c 'CREATE DATABASE \"hr-service\";' || true &&
+        psql -U postgres -d postgres -c 'CREATE DATABASE \"finance-service\";' || true &&
+        psql -U postgres -d postgres -c 'CREATE DATABASE \"reporting-service\";' || true &&
+        wait
+      "
+
+  #  Server
+  discovery-server:
+    image: abdelrahman404/konecta-discovery-server:develop-29ae71d
+    container_name: erp-discovery-server
+    ports:
+      - "8762:8080"
+    networks:
+      - erp-net
+
+  # Gateway Service
+  gateway-service:
+    image: abdelrahman404/konecta-gateway-service:develop-29ae71d
+    container_name: erp-gateway-service
+    ports:
+      - "8084:8080"
+    depends_on:
+      - discovery-server
+    networks:
+      - erp-net
+
+  # Auth Service
+  auth-service:
+    image: abdelrahman404/konecta-auth-service:develop-29ae71d
+    container_name: erp-auth-service
+    ports:
+      - "8089:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 1234
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - postgres
+      - discovery-server
+    networks:
+      - erp-net
+
+  # HR Service
+  hr-service:
+    image: abdelrahman404/konecta-hr-service:develop-29ae71d
+    container_name: erp-hr-service
+    ports:
+      - "8088:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hr-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 1234
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - postgres
+      - discovery-server
+    networks:
+      - erp-net
+
+  #  Finance Service
+  finance-service:
+    image: abdelrahman404/konecta-finance-service:develop-29ae71d
+    container_name: erp-finance-service
+    ports:
+      - "8087:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/finance-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 1234
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - postgres
+      - discovery-server
+    networks:
+      - erp-net
+
+  #  Reporting Service (.NET)
+  reporting-service:
+    image: abdelrahman404/konecta-reporting-service:develop-29ae71d
+    container_name: erp-reporting-service
+    ports:
+      - "5160:8080"
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=reporting-service;Username=postgres;Password=1234
+    depends_on:
+      - postgres
+    networks:
+      - erp-net
+
+  #  Frontend (Angular)
+  frontend:
+    image: abdelrahman404/konecta-frontend:develop-29ae71d
+    container_name: erp-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - gateway-service
+    networks:
+      - erp-net
+
+networks:
+  erp-net:
+    driver: bridge
+
+volumes:
+  pgdata:
